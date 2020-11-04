@@ -1,0 +1,9 @@
+Function F2(observation1, observation2):
+"""
+Decide if two observations belong in the same group.
+"""
+
+distanceX = observation2.x - observation1.x
+distanceY = observation2.y - observation1.y
+distanceT = observation2.time - observation1.time
+return distanceX * distanceX + distanceY * distanceY <= D3 * distanceT

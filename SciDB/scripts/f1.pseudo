@@ -1,0 +1,221 @@
+Function F1(image):
+"""
+Detect pixels exceeding a threshold in an image, grouping together adjacent
+over-threshold pixels into distinct objects.
+
+Use threshold = 1000 for F1, threshold = 900 for F1'.
+"""
+
+objectId is an integer type
+pixelObject is a type containing a list of pixel coordinates and values
+
+current is an objectId vector of size image.width initialized to 0
+previous is an objectId vector of size image.width initialized to 0
+fresh is a set of objectIds initialized to empty
+finalizable is a set of objectIds initialized to empty
+obs is a set of pixelObjects indexed by objectId initialized to empty
+currentY is an integer initialized to 0
+currentObjectId is an objectId initialized to 1
+width is an integer initialized to 0
+
+for each pixel in image, starting at 0,0 and incrementing by x and then y:
+    if pixel.y != currentY:  # We've moved to a new line.
+        flushFinalizable()
+    	currentY = y
+    	previous = current
+    	set all of current to 0
+
+    if pixel.v0 < threshold: # We don't meet the threshold criterion.
+        return
+
+    # Check for neighbors, merging existing objects if necessary.
+    leftId = leftNeighbor(pixel.x)
+    if leftId != 0:          # We have a left-hand neighbor.
+        objectId = leftId    # Assume it is the best for now.
+        upId = upNeighbor(pixel.x)
+        if upId != 0:        # We also have an upper neighbor.
+            # Merge both into the lower-numbered object, if they differ.
+            if leftId < upId:
+                mergeObjects(leftId, upId)
+            else if leftId > upId:
+                objectId = upId
+                mergeObjects(upId, leftId)
+    else:                    # No left-hand neighbor.
+        upId = upNeighbor(pixel.x)
+        if upId != 0:
+            objectId = upId
+            mergeUpper(x)
+        else:                # A new object with no neighbors.
+            objectId = currentObjectId
+            increment currentObjectId
+
+    # Record this pixel in its pixelObject.
+    add new pixel(x, y, value) to obs[objectId]
+
+    # Record the selected objectId in the buffer and remember that this
+    # objectId was updated and so is not finalizable.
+    current[x] = objectId
+    add objectId to fresh
+    remove objectId from finalizable
+
+    ###########################################################################
+
+    Function leftNeighbor(x):
+    """
+    Return the left-hand neighbor objectId for a given x coordinate, if
+    one exists.  Return 0 otherwise.
+    """
+
+    if x > 0:
+        return current[x - 1]
+    return 0
+
+    ###########################################################################
+
+    Function upNeighbor(x):
+    """
+    Return an upper neighbor objectId for a given x coordinate, from the
+    "previous" array, if one exists.  Checks upper-left, upper, and
+    upper-right neighbors, returning the smallest if two exist.  Return 0
+    otherwise.
+    """
+
+    if currentY == 0: # no previous line
+        return 0
+    bestId = previous[x]
+    if x > 0:
+        upperLeftId = previous[x - 1]
+        if upperLeftId != 0 and (bestId == 0 or upperLeftId < bestId):
+            bestId = upperLeftId
+    if x < image.width - 1:
+        upperRightId = previous[x + 1]
+        if upperRightId != 0 and (bestId == 0 or upperRightId < bestId):
+            bestId = upperRightId
+    return bestId
+
+    ###########################################################################
+
+    Function mergeUpper(x):
+    """
+    Check for and merge two disconnected upper objects into one with the
+    lower objectId.  This only happens when:
+        Previous: A 0 B
+         Current: 0 q <-- x
+    where A and B are different and q is over the threshold.  Otherwise,
+    just return without doing anything.
+    """
+
+    if x == 0 or x == image.width - 1:
+        return
+    leftId = previous[x - 1]
+    rightId = previous[x + 1]
+    if leftId == 0 or rightId == 0:
+        return
+    if leftId < rightId:
+        mergeObjects(leftId, rightId)
+    else if rightId < leftId:
+        mergeObjects(rightId, leftId)
+    else:
+        return
+
+    ###########################################################################
+
+    Function mergeObjects(destinationId, sourceId):
+    """
+    Add the pixels of the source into the destination and change the
+    objectIds in the current and previous arrays.
+    """
+
+    if destinationId == sourceId:
+        return
+
+    dest = obs[destinationId]
+    src = obs[sourceId]
+    for each pixel in src:
+        add pixel to dest
+        if pixel.y == currentY - 1:
+            previous[pixel.x] = destinationId
+        else if pixel.y == currentY:
+            current[pixel.x] = destinationId
+    remove obs[srcId] from obs
+
+    ###########################################################################
+
+    Function computePolygon(object):
+    """
+    Find the vertices of a bounding polygon for a set of pixels.
+    """
+
+    currentPosition = pixel coordinates with the lowest y coordinate of \
+        those with the lowest x coordinate
+    initialDirection = (-1, -1)
+    initialize vertices to empty
+
+    (nextPosition, direction) = \
+        chooseNext(object, currentPosition, initialDirection)
+    initialDirection = direction
+    add currentPosition to vertices
+
+    currentPosition = nextPosition
+    (nextPosition, direction) = chooseNext(object, currentPosition, direction)
+
+    while currentPosition != initialPosition or direction != initialDirection:
+        add currentPosition to vertices
+        currentPosition = nextPosition
+        (nextPosition, direction) = \
+            chooseNext(object, currentPosition, direction)
+
+    return vertices
+
+    ###########################################################################
+
+    Function chooseNext(object, position, direction):
+    """
+    Try to trace around the object, starting with a left turn and then
+    steering to the right as needed.
+    """
+
+    if object has only one pixel in it:
+        return (position, direction)
+
+    if dir is a diagonal direction:
+        rotate direction left 90 degrees
+    else:
+        rotate direction left 45 degrees
+
+    while coordinate position + direction is not in object:
+        rotate direction right 45 degrees
+
+    return (position + direction, direction)
+
+    ###########################################################################
+
+    Function flushFinalizable():
+    """
+    Turn pixelObjects in finalizable into observations.  The objects that
+    were updated with new pixels in this line are the ones that are
+    potentially finalizable in the next line.
+    """
+
+    for each objectId in finalizable:
+        initialize pixelSum, weightedSumX, weightedSumY to 0.0
+        initialize weightedDistanceSum to 0.0
+        for each pixel in obs[objectId]:
+            pixelSum += pixel.value
+            weightedSumX += pixel.x * pixel.value
+            weightedSumY += pixel.y * pixel.value
+        centroidX = weightedSumX / pixelSum
+        centroidY = weightedSumY / pixelSum
+        for each pixel in obs[objectId]:
+            distanceX = pixel.x - centroidX
+            distanceY = pixel.y - centroidY
+            weightedDistanceSum = pixel.value * \
+                sqrt(distanceX * distanceX + distanceY * distanceY)
+        averageDistance = weightedDistanceSum / pixelSum
+        polygon = computePolygon(object)
+        if polygon.edges <= D2:
+            output new observation(centroidX, centroidY, polygon, \
+                pixelSum, averageDistance)
+        remove obs[objectId] from obs
+    finalizable = fresh
+    clear fresh
