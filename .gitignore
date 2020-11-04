@@ -1,1 +1,4 @@
 SciDB/__pycache__/
+.vscode/*
+SciDB/data/*
+!SciDB/data/.gitkeep
